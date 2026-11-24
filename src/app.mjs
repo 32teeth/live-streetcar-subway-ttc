@@ -4,7 +4,8 @@ import express from 'express';
 export function createApp({ client, streetcars, subway, publicDir }) {
   const app = express();
   app.disable('x-powered-by');
-  app.use(express.static(publicDir));
+  // static files are tiny and change during development: never let a browser reuse a stale script
+  app.use(express.static(publicDir, { etag: false, lastModified: false, setHeaders: (res) => res.set('Cache-Control', 'no-store') }));
 
   app.get('/api/network', (_req, res) => {
     res.set('Cache-Control', 'public, max-age=300').json(client);

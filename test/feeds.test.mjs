@@ -5,6 +5,7 @@ import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 import { buildNetwork } from '../src/network.mjs';
 import { SubwayPoller } from '../src/subway.mjs';
 import { StreetcarFeed } from '../src/streetcar.mjs';
+import { UNIT, LANE_PX } from '../src/layout.mjs';
 
 const derived = JSON.parse(fs.readFileSync(new URL('../data/gtfs-derived.json', import.meta.url), 'utf8'));
 const { model } = buildNetwork(derived);
@@ -43,7 +44,7 @@ test('SubwayPoller turns per-platform ETAs into estimated trains on the right li
       assert.equal(t.estimated, true);
       assert.equal(t.toward, 'Kennedy');
       assert.ok(Number.isFinite(t.x) && Number.isFinite(t.y));
-      assert.equal(t.y, 26, 'trains stay on the drawn Line 2 path');
+      assert.ok(Math.abs(t.y - (26 + LANE_PX / UNIT)) < 1e-9, 'direction 0 rides the right-hand lane of Line 2');
       assert.ok(Math.cos(t.angle) > 0.99, 'direction 0 heads east');
     }
     // the 2-minute train is closer to the platform than the 12-minute one
@@ -104,7 +105,9 @@ test('StreetcarFeed keeps streetcars on tracked routes and places them with a he
     assert.equal(byId['4001'].line, '501');
     assert.ok(Math.cos(byId['4001'].angle) > 0.99, 'eastbound points east');
     assert.ok(Math.cos(byId['4002'].angle) < -0.99, 'westbound points west');
-    assert.equal(byId['4003'].angle, null, 'a stopped streetcar has no heading');
+    assert.equal(byId['4003'].angle, null, 'a stopped streetcar has no heading chevron');
+    assert.ok(Math.abs(byId['4003'].y - (30 + LANE_PX / UNIT)) < 1e-9, 'but its last bearing still puts it in the right lane');
+    assert.ok(Math.abs(byId['4002'].y - (30 - LANE_PX / UNIT)) < 1e-9, 'westbound rides the north lane');
     assert.equal(byId['4001'].speedKmh, 29);
   });
 });

@@ -2,7 +2,12 @@
 // Coordinates are grid units (x → east, y → south). Stations that are not pinned are spaced
 // evenly between the pinned stations on either side of them.
 
-export const UNIT = 36;
+export const UNIT = 42;
+// each route is drawn as a two-lane band: LANE_PX is how far each direction's track sits from the centreline
+export const LANE_PX = 5.5;
+
+// Stations drawn as one linked interchange: a single outlined pill joining the two (Beck-style)
+export const LINKS = [{ a: 'Spadina', b: 'St George' }];
 export const CANVAS = { x: 0.3, y: 8.6, w: 39.4, h: 29.2 };
 
 // Pinned station / bend / streetcar anchor helpers.
@@ -15,7 +20,9 @@ const T = (name, x, y, ll, label = 'e') => ({ x, y, ll, term: name, label });
 
 export const RAPID = [
   {
-    id: '1', name: 'Yonge–University', color: '#F8B600', ink: '#7a5a00', pattern: '1:0', label: 'w',
+    id: '1', name: 'Yonge–University', color: '#F8B600', ink: '#7a5a00', pattern: '1:0',
+    // Rosedale goes east so it doesn't run into the stacked Spadina / St George label
+    label: (st) => (st.name === 'Rosedale' ? 'e' : 'w'),
     nodes: [
       S('Finch', 20, 16, { label: 'n' }),
       S('Sheppard-Yonge', 20, 18),
@@ -50,8 +57,8 @@ export const RAPID = [
     id: '2', name: 'Bloor–Danforth', color: '#00A651', ink: '#005a2b', pattern: '2:0', label: 'ne',
     nodes: [
       S('Kipling', 3, 26, { label: 'w' }),
-      S('Spadina', 17, 26),
-      S('St George', 18, 26),
+      S('Spadina', 17, 26, { label: 'pairTop' }),
+      S('St George', 18, 26, { label: 'pairBottom' }),
       S('Bloor-Yonge', 20, 26),
       S('Main Street', 30, 26),
       S('Kennedy', 33, 23, { label: 'e' }),

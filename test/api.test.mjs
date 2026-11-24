@@ -64,6 +64,7 @@ test('the front end is served from the public directory', async () => {
     const html = await (await fetch(`${base}/`)).text();
     assert.match(html, /<svg id="map"/);
     assert.equal((await fetch(`${base}/app.js`)).status, 200);
+    assert.equal((await fetch(`${base}/app.js`)).headers.get('cache-control'), 'no-store', 'a stale cached script must never be reused');
     assert.equal((await fetch(`${base}/nope`)).status, 404);
   });
 });

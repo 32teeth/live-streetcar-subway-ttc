@@ -1,8 +1,8 @@
 // Combines the hand-designed layout with GTFS-derived data into
 //  • `client`: static drawing data for the browser
 //  • `model`: server-side lookups used to place live vehicles on the diagram
-import { RAPID, STREETCARS, STREETCAR_COLOR, EXTRA_STOPS, LAKE, UNIT, CANVAS } from './layout.mjs';
-import { geoPolyline, gridPolyline, snapToGeo, pointAt, interpolate } from './geo.mjs';
+import { RAPID, STREETCARS, STREETCAR_COLOR, EXTRA_STOPS, LAKE, UNIT, LANE_PX, LINKS, CANVAS } from './layout.mjs';
+import { geoPolyline, gridPolyline, snapToGeo, pointAt, laneAt, offsetPoints, interpolate } from './geo.mjs';
 
 const isPin = (n) => typeof n.name === 'string';
 
@@ -62,15 +62,22 @@ function buildStreetcar(sc, derived) {
     if (knots.length && a.s < knots.at(-1)[0] - 1) { warnings.push(`${sc.id}: anchor ${a.name} is out of order along the route`); continue; }
     knots.push([a.s, a.sGrid]);
   }
-  return { poly, real, knots, warnings };
+  return { poly, real, knots, warnings, lanes: lanesOf(poly) };
+}
+
+// forward lane = right of travel along the drawn path, backward lane = left (vehicles keep right)
+function lanesOf(poly) {
+  const d = LANE_PX / UNIT;
+  return { fwd: offsetPoints(poly.pts, d), bwd: offsetPoints(poly.pts, -d) };
 }
 
 export function buildNetwork(derived) {
   const rapidModels = {};
   const rapidClient = RAPID.map((line) => {
     const { poly, stations } = buildRapidLine(line, derived);
-    rapidModels[line.id] = { poly, stations, stationS: Object.fromEntries(stations.map((s) => [s.name, s.s])) };
-    return { id: line.id, name: line.name, color: line.color, ink: line.ink, kind: 'rapid', path: poly.pts, stations, labelFn: line.label };
+    const lanes = lanesOf(poly);
+    rapidModels[line.id] = { poly, lanes, stations, stationS: Object.fromEntries(stations.map((s) => [s.name, s.s])) };
+    return { id: line.id, name: line.name, color: line.color, ink: line.ink, kind: 'rapid', path: poly.pts, lanes, stations, labelFn: line.label };
   });
 
   // one entry per station name, with its label placement
@@ -98,19 +105,26 @@ export function buildNetwork(derived) {
     warnings.push(...m.warnings);
     const terminals = sc.nodes.filter((n) => n.term).map((n) => ({ name: n.term, x: n.x, y: n.y, side: n.label }));
     return {
-      id: sc.id, name: sc.name, color: STREETCAR_COLOR, kind: 'streetcar', path: m.poly.pts,
+      id: sc.id, name: sc.name, color: STREETCAR_COLOR, kind: 'streetcar', path: m.poly.pts, lanes: m.lanes,
       terminals, badges: sc.badges.map(([x, y, text]) => ({ x, y, text })),
     };
   });
 
   const client = {
     unit: UNIT,
+    lane: LANE_PX,
     canvas: CANVAS,
     lake: LAKE,
     streetcarColor: STREETCAR_COLOR,
     rapid: rapidClient.map(({ labelFn, ...l }) => ({ ...l, stations: l.stations.map(({ label, pinned, ...s }) => s) })),
     streetcars: streetcarClient,
     stations,
+    links: LINKS.map(({ a, b }) => {
+      const sa = stations.find((s) => s.name === a);
+      const sb = stations.find((s) => s.name === b);
+      if (!sa || !sb) throw new Error(`link ${a}–${b}: station not found`);
+      return { a: sa.name, b: sb.name, ax: sa.x, ay: sa.y, bx: sb.x, by: sb.y };
+    }),
     extraStops: EXTRA_STOPS,
   };
 
@@ -133,13 +147,14 @@ export function placeStreetcar(model, routeId, lat, lon, maxMeters = 500, bearin
     if (!best || hit.dist < best.dist) best = { ...hit, lineId, m };
   }
   if (!best || best.dist > maxMeters) return null;
-  const p = pointAt(best.m.poly, interpolate(best.m.knots, best.s));
-  let angle = null;
-  if (bearingDeg != null) {
-    const rad = (bearingDeg * Math.PI) / 180;
-    const r = pointAt(best.m.real, best.s); // metres, x east / y north
-    const along = Math.sin(rad) * Math.cos(r.angle) + Math.cos(rad) * Math.sin(r.angle);
-    angle = along < 0 ? p.angle + Math.PI : p.angle;
+  const sGrid = interpolate(best.m.knots, best.s);
+  if (bearingDeg == null) {
+    const p = pointAt(best.m.poly, sGrid); // heading unknown: stay on the centreline
+    return { lineId: best.lineId, x: p.x, y: p.y, off: best.dist, angle: null };
   }
-  return { lineId: best.lineId, x: p.x, y: p.y, off: best.dist, angle };
+  const rad = (bearingDeg * Math.PI) / 180;
+  const r = pointAt(best.m.real, best.s); // metres, x east / y north
+  const forward = Math.sin(rad) * Math.cos(r.angle) + Math.cos(rad) * Math.sin(r.angle) >= 0;
+  const p = laneAt(best.m.poly, forward ? best.m.lanes.fwd : best.m.lanes.bwd, sGrid);
+  return { lineId: best.lineId, x: p.x, y: p.y, off: best.dist, angle: forward ? p.angle : p.angle + Math.PI };
 }

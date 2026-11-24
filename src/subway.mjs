@@ -1,6 +1,6 @@
 // Subway / LRT positions. The TTC publishes no GPS for rail, only per-platform arrival
 // estimates (NTAS), so train positions are reconstructed from those arrival times.
-import { pointAt } from './geo.mjs';
+import { laneAt } from './geo.mjs';
 
 const NTAS = 'https://ntas.ttc.ca/api/ntas/get-next-train-time/';
 
@@ -50,9 +50,10 @@ export function placeOnLine(lineModel, pattern, pos) {
   const i1 = Math.min(pattern.names.length - 1, i0 + 1);
   const s0 = lineModel.stationS[pattern.names[i0]];
   const s1 = lineModel.stationS[pattern.names[i1]];
-  const p = pointAt(lineModel.poly, s0 + (s1 - s0) * (pos - i0));
-  // drawn paths follow direction-0 order, so direction-1 trains head the other way
-  return { x: p.x, y: p.y, angle: pattern.dir === 1 ? p.angle + Math.PI : p.angle };
+  // drawn paths follow direction-0 order: direction 0 rides the right-hand lane, direction 1 the other way round
+  const backward = pattern.dir === 1;
+  const p = laneAt(lineModel.poly, backward ? lineModel.lanes.bwd : lineModel.lanes.fwd, s0 + (s1 - s0) * (pos - i0));
+  return { x: p.x, y: p.y, angle: backward ? p.angle + Math.PI : p.angle };
 }
 
 export class SubwayPoller {

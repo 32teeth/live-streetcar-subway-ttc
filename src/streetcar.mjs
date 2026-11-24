@@ -38,13 +38,14 @@ export class StreetcarFeed {
       const age = nowSec - ts;
       if (age > 300) continue;
       const speedKmh = v.position.speed != null ? Math.round(v.position.speed * 3.6) : null;
-      // a stopped vehicle has no meaningful heading
-      const moving = speedKmh != null && speedKmh >= 2 && v.position.bearing != null;
-      const hit = placeStreetcar(this.model, routeId, v.position.latitude, v.position.longitude, 500, moving ? v.position.bearing : null);
+      // the bearing picks the lane even when stopped; the heading chevron is only shown while moving
+      const hasBearing = Object.hasOwn(v.position, 'bearing');
+      const moving = speedKmh != null && speedKmh >= 2;
+      const hit = placeStreetcar(this.model, routeId, v.position.latitude, v.position.longitude, 500, hasBearing ? v.position.bearing : null);
       if (!hit) continue;
       vehicles.push({
         id: `sc-${v.vehicle?.id ?? e.id}`, kind: 'streetcar', line: hit.lineId === '504K' ? '504' : hit.lineId,
-        route: routeId, vehicle: v.vehicle?.id ?? null, x: hit.x, y: hit.y, angle: hit.angle, ageSec: Math.max(0, age),
+        route: routeId, vehicle: v.vehicle?.id ?? null, x: hit.x, y: hit.y, angle: moving ? hit.angle : null, ageSec: Math.max(0, age),
         speedKmh,
       });
     }

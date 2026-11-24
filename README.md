@@ -1,13 +1,13 @@
 # Live TTC — Subway, LRT & Streetcars
 
-A small web app that shows where Toronto's subway trains, Line 5/6 LRT trains and streetcars are right now, drawn on a hand-built Beck-style (London Underground) diagram. Each vehicle is a dot in its line's colour with a small chevron showing which way it's heading. No buses.
+A small web app that shows where Toronto's subway trains, Line 5/6 LRT trains and streetcars are right now, drawn on a hand-built Beck-style (London Underground) diagram. Each route is a dark band holding two lighter tracks, one per direction, and every vehicle is a white dot with a coloured border riding in the track for the way it's heading (keeping right, as traffic does). No buses.
 
 ## How it works
 
 | Mode | Source | Accuracy |
 | --- | --- | --- |
 | Streetcars (501–512) | TTC GTFS-realtime vehicle positions (`gtfsrt.ttc.ca`) | Real GPS, snapped onto the drawn route |
-| Subway (Lines 1, 2, 4) and LRT (Lines 5, 6) | TTC next-train times (`ntas.ttc.ca`), polled per platform | **Estimated.** The TTC publishes no GPS for rail, so positions are reconstructed from arrival times and shown with a dashed ring |
+| Subway (Lines 1, 2, 4) and LRT (Lines 5, 6) | TTC next-train times (`ntas.ttc.ca`), polled per platform | **Estimated.** The TTC publishes no GPS for rail, so positions are reconstructed from arrival times (hover a dot to see which kind it is) |
 
 Rail positions are rebuilt by walking each platform's predicted arrivals back along the line using typical station-to-station run times from the schedule data. The same train appears in the predictions of every station downstream, so duplicates are merged.
 

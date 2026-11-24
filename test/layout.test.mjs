@@ -38,6 +38,16 @@ test('a station shared by several lines sits at the same point on each', () => {
   assert.deepEqual(interchanges, ['Bloor-Yonge', 'Cedarvale', 'Eglinton', 'Finch West', 'Kennedy', 'Sheppard-Yonge', 'Spadina', 'St George']);
 });
 
+test('linked interchanges join two real interchange stations that sit next to each other', () => {
+  assert.ok(client.links.length > 0);
+  for (const k of client.links) {
+    const a = client.stations.find((s) => s.name === k.a);
+    const b = client.stations.find((s) => s.name === k.b);
+    assert.ok(a?.interchange && b?.interchange, `${k.a}–${k.b} must both be interchanges`);
+    assert.ok(Math.hypot(k.ax - k.bx, k.ay - k.by) <= 2, `${k.a}–${k.b} are too far apart to link`);
+  }
+});
+
 test('opposite directions of each rapid line list the same stations in reverse', () => {
   for (const line of ['1', '2', '4', '5', '6']) {
     const a = derived.patterns[`${line}:0`];

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { parseEtas, backtrack, estimateTrains, placeOnLine } from '../src/subway.mjs';
 import { buildNetwork, placeStreetcar } from '../src/network.mjs';
+import { UNIT, LANE_PX } from '../src/layout.mjs';
 
 const derived = JSON.parse(fs.readFileSync(new URL('../data/gtfs-derived.json', import.meta.url), 'utf8'));
 const { client, model } = buildNetwork(derived);
@@ -28,10 +29,10 @@ test('estimateTrains merges the same train seen from several downstream stops', 
   assert.deepEqual(trains.map((t) => t.pos), [3.5, 1.5]);
 });
 
-test('every pinned station lies on its line and trains stay on the drawn path', () => {
+test('every pinned station lies on its line and trains stay on their own lane', () => {
   const p = derived.patterns['2:0'];
   const mid = placeOnLine(model.rapid['2'], p, 3.5);
-  assert.ok(Math.abs(mid.x - 6.5) < 1e-9 && mid.y === 26, JSON.stringify(mid));
+  assert.ok(Math.abs(mid.x - 6.5) < 1e-9 && Math.abs(mid.y - (26 + LANE_PX / UNIT)) < 1e-9, JSON.stringify(mid));
 });
 
 test('layout has no anchor warnings and interchanges agree on coordinates', () => {
@@ -47,10 +48,24 @@ test('heading follows the vehicle bearing along the drawn line', () => {
   assert.equal(placeStreetcar(model, '501', 43.6489, -79.3959).angle, null);
 });
 
-test('trains in opposite directions point opposite ways on the same line', () => {
+test('trains in opposite directions point opposite ways and ride opposite lanes of the same line', () => {
   const a = placeOnLine(model.rapid['2'], derived.patterns['2:0'], 3.5);
   const b = placeOnLine(model.rapid['2'], derived.patterns['2:1'], 3.5);
   assert.ok(Math.cos(a.angle) > 0.99 && Math.cos(b.angle) < -0.99);
+  const lane = LANE_PX / UNIT;
+  assert.ok(Math.abs(a.y - (26 + lane)) < 1e-9, 'eastbound keeps right: south of the line');
+  assert.ok(Math.abs(b.y - (26 - lane)) < 1e-9, 'westbound keeps right: north of the line');
+});
+
+test('streetcars keep right too, and a vehicle with no bearing stays on the centreline', () => {
+  const lane = LANE_PX / UNIT;
+  const east = placeStreetcar(model, '501', 43.6489, -79.3959, 500, 90);
+  const west = placeStreetcar(model, '501', 43.6489, -79.3959, 500, 270);
+  const none = placeStreetcar(model, '501', 43.6489, -79.3959);
+  assert.ok(Math.abs(east.y - (30 + lane)) < 1e-9);
+  assert.ok(Math.abs(west.y - (30 - lane)) < 1e-9);
+  assert.ok(Math.abs(none.y - 30) < 1e-9);
+  assert.equal(east.x, west.x);
 });
 
 test('streetcar fixes snap onto their own corridor and far-away fixes are dropped', () => {

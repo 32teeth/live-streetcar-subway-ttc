@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { geoPolyline, gridPolyline, snapToGeo, pointAt, vertexS, interpolate } from '../src/geo.mjs';
+import { geoPolyline, gridPolyline, snapToGeo, pointAt, vertexS, interpolate, offsetPoints, laneAt } from '../src/geo.mjs';
 
 const near = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps, `${a} !≈ ${b}`);
 
@@ -46,4 +46,32 @@ test('snapToGeo clamps to the ends of the route', () => {
   assert.equal(before.s, 0);
   assert.ok(before.dist > 700);
   assert.equal(snapToGeo(route, 43.7, -79.38).s, route.length);
+});
+
+test('offsetPoints shifts to the right of travel with mitred corners and keeps the vertex count', () => {
+  // east, then a 90° turn south (screen y down): right of travel is south, then west
+  const pts = [[0, 0], [10, 0], [10, 10]];
+  const right = offsetPoints(pts, 1);
+  assert.equal(right.length, 3);
+  assert.deepEqual(right[0], [0, 1]);
+  assert.deepEqual(right[1], [9, 1], 'inside corner is pulled in by the mitre');
+  assert.deepEqual(right[2], [9, 10]);
+  const left = offsetPoints(pts, -1);
+  assert.deepEqual(left[1], [11, -1], 'outside corner is pushed out');
+});
+
+test('offsetPoints keeps a straight 45° diagonal parallel at the requested distance', () => {
+  const [a, b] = offsetPoints([[0, 0], [5, 5]], Math.SQRT2);
+  assert.ok(Math.abs(a[0] - -1) < 1e-9 && Math.abs(a[1] - 1) < 1e-9);
+  assert.ok(Math.abs(b[0] - 4) < 1e-9 && Math.abs(b[1] - 6) < 1e-9);
+});
+
+test('laneAt maps the same fraction of each segment onto the offset path', () => {
+  const poly = gridPolyline([[0, 0], [10, 0], [10, 10]]);
+  const lane = offsetPoints(poly.pts, 1); // [0,1] → [9,1] → [9,10]: the inner lane is shorter at the corner
+  const p = laneAt(poly, lane, 5);
+  assert.deepEqual([p.x, p.y, p.angle], [4.5, 1, 0]);
+  const q = laneAt(poly, lane, 15); // halfway down the second leg, travelling south
+  assert.deepEqual([q.x, q.y], [9, 5.5]);
+  near(q.angle, Math.PI / 2);
 });

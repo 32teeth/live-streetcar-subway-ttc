@@ -18,18 +18,37 @@ const layers = {};
 
 // ---------- static diagram ----------
 
-const SIDES = {
-  e: { dx: 13, dy: 4, a: 'start', r: 0 },
-  w: { dx: -13, dy: 4, a: 'end', r: 0 },
-  eu: { dx: 13, dy: -4, a: 'start', r: 0 },
-  wu: { dx: -13, dy: -4, a: 'end', r: 0 },
-  n: { dx: 0, dy: -14, a: 'middle', r: 0 },
-  s: { dx: 0, dy: 22, a: 'middle', r: 0 },
-  ne: { dx: 5, dy: -8, a: 'start', r: -45 },
-  nw: { dx: -5, dy: -8, a: 'end', r: 45 },
-  se: { dx: 5, dy: 14, a: 'start', r: 45 },
-  sw: { dx: -5, dy: 14, a: 'end', r: -45 },
-};
+// Each route is a light band holding two darker tracks (one per direction) that the vehicles sit in.
+const TRACK_W = 9;
+let LANE = 5.5;
+let BAND_HALF = 12; // half-width of the light band, in px
+
+let SIDES = {};
+function buildSides(h) {
+  SIDES = {
+    e: { dx: h + 9, dy: 4, a: 'start', r: 0 },
+    w: { dx: -(h + 9), dy: 4, a: 'end', r: 0 },
+    eu: { dx: h + 9, dy: -4, a: 'start', r: 0 },
+    wu: { dx: -(h + 9), dy: -4, a: 'end', r: 0 },
+    n: { dx: 0, dy: -(h + 10), a: 'middle', r: 0 },
+    s: { dx: 0, dy: h + 18, a: 'middle', r: 0 },
+    ne: { dx: 5, dy: -(h + 4), a: 'start', r: -45 },
+    nw: { dx: -5, dy: -(h + 4), a: 'end', r: 45 },
+    se: { dx: 5, dy: h + 10, a: 'start', r: 45 },
+    sw: { dx: -5, dy: h + 10, a: 'end', r: -45 },
+    // linked pair Spadina (left) + St George (right): both labels stacked above, clear of Line 1's northbound leg
+    pairTop: { dx: h + 2, dy: -(h + 21), a: 'start', r: 0 },
+    pairBottom: { dx: h + 2 - U, dy: -(h + 8), a: 'start', r: 0 },
+  };
+}
+
+// colour helpers
+const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const hex = (c) => `#${c.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
+const mix = (a, b, t) => hex(rgb(a).map((v, i) => v + (b[i] - v) * t));
+const shade = (c) => mix(c, [0, 0, 0], 0.4); // the dark band around the tracks
+const deep = (c) => mix(c, [0, 0, 0], 0.55); // its outline, and the vehicle discs
+const bright = (c) => mix(c, [255, 255, 255], 0.5); // the lit track inside, half-way to white
 
 function label(parent, text, x, y, side, cls = '', size = 11.5, weight = 400) {
   const s = SIDES[side] || SIDES.e;
@@ -43,35 +62,37 @@ function label(parent, text, x, y, side, cls = '', size = 11.5, weight = 400) {
 const pathD = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${px(p[0])} ${px(p[1])}`).join(' ');
 
 function drawStatic() {
+  LANE = net.lane;
+  BAND_HALF = LANE + TRACK_W / 2 + 1.5;
+  buildSides(BAND_HALF);
   svg.replaceChildren();
   const W = px(net.canvas.w);
   const H = px(net.canvas.h);
   el('rect', { x: -4000, y: -4000, width: 8000 + W, height: 8000 + H, fill: getComputedStyle(document.documentElement).getPropertyValue('--paper') }, svg);
-  const defs = el('defs', {}, svg);
-  const f = el('filter', { id: 'shadow', x: '-50%', y: '-50%', width: '200%', height: '200%' }, defs);
-  el('feDropShadow', { dx: 0, dy: 1, stdDeviation: 1.4, 'flood-color': '#000', 'flood-opacity': 0.55 }, f);
 
   const lake = el('g', {}, svg);
   el('polygon', { points: net.lake.map((p) => `${px(p[0])},${px(p[1])}`).join(' '), fill: '#d5e6ec' }, lake);
   const lt = el('text', { x: px(30), y: px(36.9), class: 'lake-label', 'font-size': 20, 'text-anchor': 'middle' }, lake);
   lt.textContent = 'LAKE ONTARIO';
 
-  const sc = el('g', { 'stroke-linejoin': 'round', 'stroke-linecap': 'round', fill: 'none' }, svg);
-  for (const l of net.streetcars) el('path', { d: pathD(l.path), stroke: l.color, 'stroke-width': 4.5 }, sc);
+  const routes = el('g', { 'stroke-linejoin': 'round', 'stroke-linecap': 'round', fill: 'none' }, svg);
+  const drawRoute = (l) => {
+    const g = el('g', {}, routes);
+    el('path', { d: pathD(l.path), stroke: deep(l.color), 'stroke-width': BAND_HALF * 2 + 2.4 }, g);
+    el('path', { d: pathD(l.path), stroke: shade(l.color), 'stroke-width': BAND_HALF * 2 }, g);
+    for (const lane of [l.lanes.fwd, l.lanes.bwd]) el('path', { d: pathD(lane), stroke: bright(l.color), 'stroke-width': TRACK_W }, g);
+  };
+  // streetcars first so the subway/LRT bands cross over them
+  for (const l of net.streetcars) drawRoute(l);
+  for (const l of net.rapid) drawRoute(l);
 
-  const rapid = el('g', { 'stroke-linejoin': 'round', 'stroke-linecap': 'round', fill: 'none' }, svg);
-  for (const l of net.rapid) {
-    el('path', { d: pathD(l.path), stroke: l.ink, 'stroke-width': 10, opacity: 0.35 }, rapid);
-    el('path', { d: pathD(l.path), stroke: l.color, 'stroke-width': 8 }, rapid);
-  }
-
-  // ticks (Beck-style) on every rapid station
-  // Beck-style ticks: a short stub on the label side of the line, starting at the line's edge (never crossing it)
+  // Beck-style ticks: a short stub on the label side of the band, starting at its edge (never crossing it)
   const sideVec = { e: [1, 0], w: [-1, 0], eu: [1, 0], wu: [-1, 0], n: [0, -1], s: [0, 1], ne: [1, -1], nw: [-1, -1], se: [1, 1], sw: [-1, 1] };
   const sideOf = new Map(net.stations.map((s) => [s.name, s]));
   for (const l of net.rapid) {
-    const ticks = el('g', { stroke: l.color, 'stroke-width': 2.6, 'stroke-linecap': 'butt' }, svg);
-    for (const s of l.stations) {
+    const ticks = el('g', { stroke: shade(l.color), 'stroke-width': 2.6, 'stroke-linecap': 'butt' }, svg);
+    for (const [i, s] of l.stations.entries()) {
+      if (i === 0 || i === l.stations.length - 1) continue; // terminals get no tick
       const st = sideOf.get(s.name);
       if (st?.interchange) continue;
       let nx = -Math.sin(s.angle);
@@ -79,18 +100,24 @@ function drawStatic() {
       const [lx, ly] = sideVec[st?.side] || [0, 1];
       const dot = nx * lx + ny * ly;
       if (dot < 0 || (dot === 0 && ny < 0)) { nx = -nx; ny = -ny; }
-      el('line', { x1: px(s.x) + nx * 3, y1: px(s.y) + ny * 3, x2: px(s.x) + nx * 9.5, y2: px(s.y) + ny * 9.5 }, ticks);
+      el('line', { x1: px(s.x) + nx * (BAND_HALF + 0.5), y1: px(s.y) + ny * (BAND_HALF + 0.5), x2: px(s.x) + nx * (BAND_HALF + 6.5), y2: px(s.y) + ny * (BAND_HALF + 6.5) }, ticks);
     }
   }
 
   const stops = el('g', {}, svg);
+  // Beck-style linked interchange: outlined link first, then the two circles, then the white inside of
+  // the link on top so the circle interiors open into it
+  const LINK_W = 10;
+  const linkLine = (k, stroke, width) => el('line', { x1: px(k.ax), y1: px(k.ay), x2: px(k.bx), y2: px(k.by), stroke, 'stroke-width': width, 'stroke-linecap': 'butt' }, stops);
+  for (const k of net.links) linkLine(k, '#1b1b1b', LINK_W + 6);
   for (const s of net.stations) {
-    if (s.interchange) el('circle', { cx: px(s.x), cy: px(s.y), r: 8.5, fill: '#fff', stroke: '#1b1b1b', 'stroke-width': 3 }, stops);
+    if (s.interchange) el('circle', { cx: px(s.x), cy: px(s.y), r: BAND_HALF + 4, fill: '#fff', stroke: '#1b1b1b', 'stroke-width': 3 }, stops);
   }
+  for (const k of net.links) linkLine(k, '#fff', LINK_W);
   for (const l of net.streetcars) {
-    for (const t of l.terminals) el('circle', { cx: px(t.x), cy: px(t.y), r: 5, fill: '#fff', stroke: l.color, 'stroke-width': 3 }, stops);
+    for (const t of l.terminals) el('circle', { cx: px(t.x), cy: px(t.y), r: BAND_HALF - 3, fill: '#fff', stroke: shade(l.color), 'stroke-width': 3 }, stops);
   }
-  for (const x of net.extraStops) el('circle', { cx: px(x.x), cy: px(x.y), r: 4.5, fill: '#fff', stroke: net.streetcarColor, 'stroke-width': 2.5 }, stops);
+  for (const x of net.extraStops) el('circle', { cx: px(x.x), cy: px(x.y), r: BAND_HALF - 1, fill: '#fff', stroke: shade(net.streetcarColor), 'stroke-width': 2.5 }, stops);
 
   const labels = el('g', {}, svg);
   const done = new Set();
@@ -131,10 +158,9 @@ let info;
 function makeDot(v) {
   const color = info[v.line].color;
   const g = el('g', { class: `vehicle fade${v.estimated ? ' est' : ''}` }, layers.vehicles);
-  el('circle', { class: 'halo', r: 10.5, stroke: v.estimated ? color : 'none' }, g);
-  el('circle', { r: 6.5, fill: color, stroke: '#fff', 'stroke-width': 2.6, filter: 'url(#shadow)' }, g);
-  const chevron = el('path', { d: 'M-2.6 -3.4 L3.2 0 L-2.6 3.4 L-1.2 0 Z', fill: '#fff' }, g);
-  g.chevron = chevron;
+  // every vehicle: white inside, a slightly darkened line colour as the border
+  // inner white area is 4.24 radius (10% bigger than before); border 1.6 wide and darker
+  el('circle', { r: 5.04, fill: '#fff', stroke: mix(color, [0, 0, 0], 0.4), 'stroke-width': 1.6 }, g);
   g.addEventListener('pointerenter', (e) => showTip(e, g));
   g.addEventListener('pointermove', (e) => moveTip(e));
   g.addEventListener('pointerleave', () => { tip.hidden = true; });
@@ -163,22 +189,29 @@ function moveTip(e) {
   tip.style.top = `${Math.min(e.clientY + 14, innerHeight - r.height - 8)}px`;
 }
 
-// Existing dots keep their DOM node and only change position when it actually changed;
-// only genuinely new vehicles are created (and fade in).
+// Existing dots keep their DOM node and glide to their new position (CSS transition on the
+// transform); only genuinely new vehicles are created (and fade in). The server already puts
+// each vehicle in its direction's track, so positions are used as-is.
+const GLIDE_MAX = 6; // grid units; anything further is a re-match or a big jump, so snap instead
+
+function placeDot(d, x, y) {
+  const g = d.g;
+  const snap = d.x == null || Math.hypot(x - d.x, y - d.y) > GLIDE_MAX;
+  if (snap) g.classList.remove('glide');
+  d.x = x;
+  d.y = y;
+  g.style.transform = `translate(${px(x)}px, ${px(y)}px)`;
+  if (snap) {
+    g.getBoundingClientRect(); // commit the snapped position before re-enabling the transition
+    g.classList.add('glide');
+  }
+}
+
 function applyVehicle(d, v) {
   d.data = v;
   d.line = v.line;
-  if (d.x !== v.x || d.y !== v.y) {
-    d.x = v.x;
-    d.y = v.y;
-    d.g.setAttribute('transform', `translate(${px(v.x)} ${px(v.y)})`);
-  }
+  if (d.x !== v.x || d.y !== v.y) placeDot(d, v.x, v.y);
   d.g.classList.toggle('stale', (v.ageSec ?? 0) > 120);
-  if (v.angle == null) d.g.chevron.setAttribute('display', 'none');
-  else {
-    d.g.chevron.removeAttribute('display');
-    d.g.chevron.setAttribute('transform', `rotate(${((v.angle * 180) / Math.PI).toFixed(1)})`);
-  }
 }
 
 function reconcile(vehicles) {

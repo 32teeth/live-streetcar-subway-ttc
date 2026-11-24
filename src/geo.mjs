@@ -40,16 +40,51 @@ export function snapToGeo(poly, lat, lon) {
   return best;
 }
 
-/** Point and heading (radians) at arclength s along a polyline (clamped). */
-export function pointAt(poly, s) {
+function locate(poly, s) {
   const c = Math.max(0, Math.min(poly.length, s));
   let i = 1;
   while (i < poly.pts.length - 1 && poly.cum[i] < c) i++;
+  const seg = poly.cum[i] - poly.cum[i - 1];
+  return { i, t: seg === 0 ? 0 : (c - poly.cum[i - 1]) / seg };
+}
+
+/** Point and heading (radians) at arclength s along a polyline (clamped). */
+export function pointAt(poly, s) {
+  const { i, t } = locate(poly, s);
   const [ax, ay] = poly.pts[i - 1];
   const [bx, by] = poly.pts[i];
-  const seg = poly.cum[i] - poly.cum[i - 1];
-  const t = seg === 0 ? 0 : (c - poly.cum[i - 1]) / seg;
   return { x: ax + (bx - ax) * t, y: ay + (by - ay) * t, angle: Math.atan2(by - ay, bx - ax) };
+}
+
+/**
+ * Offset a polyline sideways by `d` (positive = to the right of travel; screen y points down),
+ * with mitred corners. The result keeps the vertex count, so it stays parallel to the original.
+ */
+export function offsetPoints(pts, d) {
+  const normals = [];
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i][0] - pts[i - 1][0];
+    const dy = pts[i][1] - pts[i - 1][1];
+    const len = Math.hypot(dx, dy) || 1;
+    normals.push([-dy / len, dx / len]);
+  }
+  return pts.map((p, i) => {
+    const a = normals[i - 1] ?? normals[i];
+    const b = normals[i] ?? normals[i - 1];
+    const k = 1 + a[0] * b[0] + a[1] * b[1];
+    const m = k < 0.2 ? a : [(a[0] + b[0]) / k, (a[1] + b[1]) / k]; // near-reversal: don't spike
+    return [p[0] + m[0] * d, p[1] + m[1] * d];
+  });
+}
+
+/** Point on an offset copy of `poly` (see offsetPoints) at the position matching arclength s of `poly`. */
+export function laneAt(poly, lanePts, s) {
+  const { i, t } = locate(poly, s);
+  const [ax, ay] = lanePts[i - 1];
+  const [bx, by] = lanePts[i];
+  const [px, py] = poly.pts[i - 1];
+  const [qx, qy] = poly.pts[i];
+  return { x: ax + (bx - ax) * t, y: ay + (by - ay) * t, angle: Math.atan2(qy - py, qx - px) };
 }
 
 /** Arclength of the vertex of `poly` closest to the given grid point (used to place pinned nodes). */

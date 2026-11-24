@@ -11,14 +11,13 @@ html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink
 #map text { font-family: var(--font); fill: var(--ink); paint-order: stroke; stroke: var(--paper); stroke-width: 3.5px; stroke-linejoin: round; pointer-events: none; }
 #map .lake-label { fill: #7ea0ad; stroke: none; font-style: italic; letter-spacing: 3px; }
 #map .vehicle { cursor: pointer; }
-#map .vehicle .halo { fill: none; stroke-width: 2; opacity: .55; }
-#map .vehicle.est .halo { stroke-dasharray: 2.5 2.5; }
 #map .vehicle.stale { opacity: .45; }
 #map .fade { animation: fadein .6s ease-out; }
+#map .vehicle.glide { transition: transform 2.5s ease-in-out; }
 @keyframes fadein { from { opacity: 0; } }
 
 #tip { position: fixed; z-index: 10; pointer-events: none; background: var(--ink); color: #fff; padding: 6px 9px; border-radius: 4px; font-size: 12.5px; line-height: 1.35; max-width: 240px; }
 #tip b { font-size: 13.5px; }
 #tip small { color: #cfcab8; display: block; }
 
-@media (prefers-reduced-motion: reduce) { #map .fade { animation: none; } }
+@media (prefers-reduced-motion: reduce) { #map .fade { animation: none; } #map .vehicle.glide { transition: none; } }

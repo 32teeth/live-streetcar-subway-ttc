@@ -2,6 +2,8 @@
 
 A small web app that shows where Toronto's subway trains, Line 5/6 LRT trains and streetcars are right now, drawn on a hand-built Beck-style (London Underground) diagram. Each route is a dark band holding two lighter tracks, one per direction, and every vehicle is a white dot with a coloured border riding in the track for the way it's heading (keeping right, as traffic does). No buses.
 
+![Live TTC subway, LRT and streetcar map](docs/screenshot.png)
+
 ## How it works
 
 | Mode | Source | Accuracy |

@@ -75,7 +75,9 @@ function drawStatic() {
   const lt = el('text', { x: px(30), y: px(36.9), class: 'lake-label', 'font-size': 20, 'text-anchor': 'middle' }, lake);
   lt.textContent = 'LAKE ONTARIO';
 
-  const routes = el('g', { 'stroke-linejoin': 'round', 'stroke-linecap': 'round', fill: 'none' }, svg);
+  // everything that makes up the map itself (not the paper or lake), so the view can fit to what's drawn
+  const content = el('g', {}, svg);
+  const routes = el('g', { 'stroke-linejoin': 'round', 'stroke-linecap': 'round', fill: 'none' }, content);
   const drawRoute = (l) => {
     const g = el('g', {}, routes);
     el('path', { d: pathD(l.path), stroke: deep(l.color), 'stroke-width': BAND_HALF * 2 + 2.4 }, g);
@@ -90,7 +92,7 @@ function drawStatic() {
   const sideVec = { e: [1, 0], w: [-1, 0], eu: [1, 0], wu: [-1, 0], n: [0, -1], s: [0, 1], ne: [1, -1], nw: [-1, -1], se: [1, 1], sw: [-1, 1] };
   const sideOf = new Map(net.stations.map((s) => [s.name, s]));
   for (const l of net.rapid) {
-    const ticks = el('g', { stroke: shade(l.color), 'stroke-width': 2.6, 'stroke-linecap': 'butt' }, svg);
+    const ticks = el('g', { stroke: shade(l.color), 'stroke-width': 2.6, 'stroke-linecap': 'butt' }, content);
     for (const [i, s] of l.stations.entries()) {
       if (i === 0 || i === l.stations.length - 1) continue; // terminals get no tick
       const st = sideOf.get(s.name);
@@ -104,7 +106,7 @@ function drawStatic() {
     }
   }
 
-  const stops = el('g', {}, svg);
+  const stops = el('g', {}, content);
   // Beck-style linked interchange: outlined link first, then the two circles, then the white inside of
   // the link on top so the circle interiors open into it
   const LINK_W = 10;
@@ -119,7 +121,7 @@ function drawStatic() {
   }
   for (const x of net.extraStops) el('circle', { cx: px(x.x), cy: px(x.y), r: BAND_HALF - 1, fill: '#fff', stroke: shade(net.streetcarColor), 'stroke-width': 2.5 }, stops);
 
-  const labels = el('g', {}, svg);
+  const labels = el('g', {}, content);
   const done = new Set();
   const isEnd = (name) => net.rapid.some((l) => l.stations[0].name === name || l.stations.at(-1).name === name);
   for (const s of net.stations) {
@@ -136,7 +138,7 @@ function drawStatic() {
   }
   for (const x of net.extraStops) label(labels, x.name, x.x, x.y, x.label, '', 11, 600);
 
-  const badges = el('g', {}, svg);
+  const badges = el('g', {}, content);
   for (const l of net.streetcars) {
     for (const b of l.badges) {
       const w = 30;
@@ -147,6 +149,7 @@ function drawStatic() {
   }
 
   layers.vehicles = el('g', {}, svg);
+  layers.content = content;
 }
 
 // ---------- live vehicles ----------
@@ -273,14 +276,19 @@ async function refresh() {
 const vb = { x: 0, y: 0, w: 1, h: 1 };
 const applyVB = () => svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
 
+const home = { w: 1, h: 1 }; // the fitted view; zoom limits are relative to it
+
+// Fit the drawn map (routes, stations, labels) to the window, centred, with a margin.
 function fit() {
-  const cw = px(net.canvas.w);
-  const ch = px(net.canvas.h);
-  const s = Math.min(innerWidth / cw, innerHeight / ch);
+  const box = layers.content.getBBox();
+  const pad = 36;
+  const s = Math.min(innerWidth / (box.width + pad * 2), innerHeight / (box.height + pad * 2));
   vb.w = innerWidth / s;
   vb.h = innerHeight / s;
-  vb.x = px(net.canvas.x) + (cw - vb.w) / 2;
-  vb.y = px(net.canvas.y) + (ch - vb.h) / 2;
+  vb.x = box.x + box.width / 2 - vb.w / 2;
+  vb.y = box.y + box.height / 2 - vb.h / 2;
+  home.w = vb.w;
+  home.h = vb.h;
   applyVB();
 }
 
@@ -288,8 +296,7 @@ function zoomAt(cx, cy, factor) {
   const r = svg.getBoundingClientRect();
   const mx = vb.x + ((cx - r.left) / r.width) * vb.w;
   const my = vb.y + ((cy - r.top) / r.height) * vb.h;
-  const base = Math.min(innerWidth / px(net.canvas.w), innerHeight / px(net.canvas.h));
-  const w = Math.max(innerWidth / (base * 6), Math.min(innerWidth / (base * 0.8), vb.w * factor));
+  const w = Math.max(home.w / 6, Math.min(home.w / 0.8, vb.w * factor));
   const k = w / vb.w;
   vb.x = mx - (mx - vb.x) * k;
   vb.y = my - (my - vb.y) * k;

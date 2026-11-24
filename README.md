@@ -41,7 +41,8 @@ Everything visual is in [`src/layout.mjs`](src/layout.mjs): station positions, b
 ## Project layout
 
 ```
-server.mjs          Express server: /api/network (drawing data), /api/vehicles (live dots)
+server.mjs          Entry point: loads data, starts polling, listens
+src/app.mjs         Express app: /api/network (drawing data), /api/vehicles (live dots)
 src/layout.mjs      Hand-designed diagram
 src/network.mjs     Combines layout + GTFS into drawing data and lookup models
 src/subway.mjs      NTAS polling and train-position estimation
@@ -49,7 +50,7 @@ src/streetcar.mjs   GTFS-realtime streetcar feed
 src/geo.mjs         Polyline helpers
 scripts/build-data.mjs  Builds data/gtfs-derived.json
 public/             Static front end (SVG, no framework)
-test/               node:test unit tests
+test/               node:test suites (geometry, layout rules, feeds, HTTP API)
 ```
 
 ## Test
@@ -57,6 +58,8 @@ test/               node:test unit tests
 ```sh
 npm test
 ```
+
+The tests need no network: the TTC feeds are mocked, including a real encoded GTFS-realtime payload. Besides unit tests, they check the diagram rules (every segment horizontal, vertical or 45°; stations in schedule order; shared stations at one point) so a layout edit that breaks the map fails fast.
 
 ## License
 

@@ -1,7 +1,7 @@
-import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createApp } from './src/app.mjs';
 import { buildNetwork } from './src/network.mjs';
 import { SubwayPoller } from './src/subway.mjs';
 import { StreetcarFeed } from './src/streetcar.mjs';
@@ -15,30 +15,7 @@ const streetcars = new StreetcarFeed(model);
 const subway = new SubwayPoller(derived, model);
 subway.start();
 
-const app = express();
-app.disable('x-powered-by');
-app.use(express.static(path.join(ROOT, 'public')));
-
-app.get('/api/network', (_req, res) => {
-  res.set('Cache-Control', 'public, max-age=300').json(client);
-});
-
-app.get('/api/vehicles', async (_req, res) => {
-  const status = { streetcars: 'ok', rapid: subway.lastRun ? { ...subway.lastRun } : null };
-  let sc = [];
-  try {
-    const feed = await streetcars.get();
-    sc = feed.vehicles;
-    if (feed.error) status.streetcars = `stale: ${feed.error}`;
-  } catch (err) {
-    status.streetcars = `error: ${err.message}`;
-  }
-  res.set('Cache-Control', 'no-store').json({
-    updated: Date.now(),
-    status,
-    vehicles: [...sc, ...subway.trains()],
-  });
-});
+const app = createApp({ client, streetcars, subway, publicDir: path.join(ROOT, 'public') });
 
 const port = Number(process.env.PORT) || 3000;
 const server = app.listen(port, () => console.log(`Live TTC map → http://localhost:${port}`));

@@ -1,0 +1,5 @@
+.cache/
+node_modules/
+.DS_Store
+# TTC's own map PDF is used only as visual reference and isn't ours to redistribute
+reference/

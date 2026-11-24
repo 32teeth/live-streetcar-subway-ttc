@@ -1,0 +1,19 @@
+{
+  "name": "live-streetcar-subway-ttc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Live TTC streetcar, subway and LRT positions on a Beck-style diagram",
+  "scripts": {
+    "start": "node --use-system-ca server.mjs",
+    "build:data": "node --use-system-ca scripts/build-data.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.15"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "gtfs-realtime-bindings": "^2.2.0"
+  }
+}

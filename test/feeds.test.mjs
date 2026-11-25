@@ -133,3 +133,27 @@ test('StreetcarFeed caches responses and falls back to the last good data on fai
     await assert.rejects(() => cold.get(), /500/);
   });
 });
+
+// ---------- browser build ----------
+
+test('gtfsrt-lite decodes the same vehicle positions as gtfs-realtime-bindings', async () => {
+  const { decodeFeed } = await import('../src/gtfsrt-lite.mjs');
+  const { placeFeed } = await import('../src/streetcar-place.mjs');
+  const now = Math.floor(Date.now() / 1000);
+  const msg = FeedMessage.create({
+    header: { gtfsRealtimeVersion: '2.0', timestamp: now },
+    entity: [
+      { id: '1', vehicle: { trip: { routeId: '501' }, position: { latitude: 43.6479, longitude: -79.4, bearing: 90, speed: 5 }, timestamp: now - 3, vehicle: { id: '4400' } } },
+      { id: '2', vehicle: { trip: { routeId: '999' }, position: { latitude: 43.7, longitude: -79.4 }, timestamp: now } },
+    ],
+  });
+  const bytes = FeedMessage.encode(msg).finish();
+  const lite = decodeFeed(bytes);
+  assert.equal(lite.header.timestamp, now);
+  assert.equal(lite.entity.length, 2);
+  assert.equal(lite.entity[0].vehicle.trip.routeId, '501');
+  assert.equal(lite.entity[0].vehicle.vehicle.id, '4400');
+  assert.ok(Math.abs(lite.entity[0].vehicle.position.latitude - 43.6479) < 1e-4);
+  assert.equal(Object.hasOwn(lite.entity[1].vehicle.position, 'bearing'), false);
+  assert.deepEqual(placeFeed(model, lite), placeFeed(model, FeedMessage.decode(bytes)));
+});

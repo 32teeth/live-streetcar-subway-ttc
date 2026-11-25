@@ -6,6 +6,7 @@
   "description": "Live TTC streetcar, subway and LRT positions on a Beck-style diagram",
   "scripts": {
     "start": "node --use-system-ca server.mjs",
+    "build:site": "node scripts/build-site.mjs",
     "build:data": "node --use-system-ca scripts/build-data.mjs",
     "test": "node --test test/*.test.mjs"
   },

@@ -262,9 +262,7 @@ function reconcile(vehicles) {
 
 async function refresh() {
   try {
-    const res = await fetch('/api/vehicles', { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    const data = await source.vehicles();
     reconcile(data.vehicles);
   } catch (err) {
     console.warn(`Vehicle refresh failed: ${err.message}`);
@@ -336,7 +334,17 @@ function setupGestures() {
 
 // ---------- boot ----------
 
-net = await (await fetch('/api/network')).json();
+const source = window.TTC?.static
+  ? await (await import('./live.js')).startLive(window.TTC)
+  : {
+    network: await (await fetch('/api/network')).json(),
+    async vehicles() {
+      const res = await fetch('/api/vehicles', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    },
+  };
+net = source.network;
 U = net.unit;
 info = lineInfo();
 drawStatic();

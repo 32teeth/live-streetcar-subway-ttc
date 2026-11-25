@@ -28,6 +28,18 @@ npm start          # http://localhost:3000   (PORT=3100 npm start to change)
 
 Use it: drag to pan, scroll or pinch to zoom, double-click to reset. Hover a dot for details.
 
+## Self-hosted on GitHub Pages
+
+Live at <https://32teeth.github.io/live-streetcar-subway-ttc>. The Pages build has no server: the browser reads rail arrivals straight from the TTC's NTAS API (CORS-enabled) and runs the same estimation code as the server. The streetcar GPS feed sends no CORS headers, so it goes through a tiny Cloudflare Worker ([`worker/`](worker/index.js)) that just relays the feed; the browser decodes it with [`src/gtfsrt-lite.mjs`](src/gtfsrt-lite.mjs).
+
+One-time setup:
+
+1. Repo **Settings → Pages → Source: GitHub Actions**.
+2. Deploy the proxy: `cd worker && npx wrangler deploy` (edit `ALLOWED_ORIGINS` in `worker/index.js` if you use another domain).
+3. Repo **Settings → Secrets and variables → Actions → Variables**: add `STREETCAR_PROXY` = the Worker URL.
+
+Every push to `main` runs the tests and redeploys ([`.github/workflows/pages.yml`](.github/workflows/pages.yml)). Without `STREETCAR_PROXY` the site still works, just with subway and LRT only. Preview the build locally with `npm run build:site` and any static file server on `dist/`.
+
 ## Rebuild the schedule data
 
 `data/gtfs-derived.json` (station order, run times, reference streetcar shapes) is committed so the app runs out of the box. To regenerate it from the latest TTC schedule:
